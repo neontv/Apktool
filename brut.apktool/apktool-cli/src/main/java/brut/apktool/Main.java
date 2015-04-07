@@ -215,6 +215,9 @@ public class Main {
         if (cli.hasOption("p") || cli.hasOption("frame-path")) {
             apkOptions.frameworkFolderLocation = cli.getOptionValue("p");
         }
+        if (cli.hasOption("increment-version")) {
+            apkOptions.incrementVersionCode = true;
+        }
         if (cli.hasOption("o") || cli.hasOption("output")) {
             outFile = new File(cli.getOptionValue("o"));
         } else {
@@ -361,6 +364,10 @@ public class Main {
                 .withArgName("dir")
                 .create("o");
 
+        Option incrementVersionCodeOption = OptionBuilder.withLongOpt("increment-version")
+                .withDescription("Increments the version code in the manifest.  Does NOT affect the versionName attribute.")
+                .create();
+
         Option quietOption = OptionBuilder.withLongOpt("quiet")
                 .create("q");
 
@@ -397,6 +404,7 @@ public class Main {
         BuildOptions.addOption(outputBuiOption);
         BuildOptions.addOption(frameDirOption);
         BuildOptions.addOption(forceBuiOption);
+        BuildOptions.addOption(incrementVersionCodeOption);
 
         // add basic framework options
         frameOptions.addOption(tagOption);

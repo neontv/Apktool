@@ -270,7 +270,7 @@ final public class AndrolibResources {
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         Transformer transformer = transformerFactory.newTransformer();
         transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-        transformer.setOutputProperty(OutputKeys.STANDALONE,"yes");
+        transformer.setOutputProperty(OutputKeys.STANDALONE, "yes");
         DOMSource source = new DOMSource(doc);
         StreamResult result = new StreamResult(new File(filename));
         transformer.transform(source, result);
@@ -362,7 +362,25 @@ final public class AndrolibResources {
 
     public void setVersionInfo(Map<String, String> map) {
         if (map != null) {
-            mVersionCode = map.get("versionCode");
+            String versionCode = map.get("versionCode");
+            if(apkOptions.incrementVersionCode) {
+                LOGGER.fine("Attempting to increment version code");
+                if(versionCode != null && !versionCode.isEmpty()) {
+                    try {
+                        int code = Integer.parseInt(versionCode);
+                        versionCode = String.valueOf(++code);
+                    } catch(NumberFormatException e) {
+                        LOGGER.severe("Unable to increment version code - invalid number format.");
+                    }
+                }
+                else {
+                    LOGGER.warning("Unable to increment version code - could not find version code.");
+                }
+            }
+            else {
+                LOGGER.fine("Not attempting to increment version code");
+            }
+            mVersionCode = versionCode;
             mVersionName = map.get("versionName");
         }
     }
