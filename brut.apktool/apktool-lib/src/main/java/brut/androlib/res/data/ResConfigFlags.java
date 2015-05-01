@@ -74,8 +74,8 @@ public class ResConfigFlags {
         smallestScreenWidthDp = 0;
         screenWidthDp = 0;
         screenHeightDp = 0;
-        localeScript = new char[] { '\00', '\00', '\00', '\00' };
-        localeVariant = new char[] { '\00', '\00', '\00', '\00', '\00', '\00', '\00', '\00' };
+        localeScript = null;
+        localeVariant = null;
         isInvalid = false;
         mQualifiers = "";
     }
@@ -112,6 +112,22 @@ public class ResConfigFlags {
             LOGGER.warning("Invalid navigation value: " + navigation);
             navigation = 0;
             isInvalid = true;
+        }
+
+        if (localeScript != null && localeScript.length != 0) {
+            if (localeScript[0] == '\00') {
+                localeScript = null;
+            }
+        } else {
+            localeScript = null;
+        }
+
+        if (localeVariant != null && localeVariant.length != 0) {
+            if (localeVariant[0] == '\00') {
+                localeVariant = null;
+            }
+        }  else {
+            localeVariant = null;
         }
 
         this.mcc = mcc;
@@ -343,7 +359,7 @@ public class ResConfigFlags {
                 ret.append(String.format("-%dx%d", screenHeight, screenWidth));
             }
         }
-        if (sdkVersion > getNaturalSdkVersionRequirement()) {
+        if (sdkVersion > 0 && sdkVersion >= getNaturalSdkVersionRequirement()) {
             ret.append("-v").append(sdkVersion);
         }
         if (isInvalid) {
@@ -375,11 +391,8 @@ public class ResConfigFlags {
         // check for old style non BCP47 tags
         // allows values-xx-rXX, values-xx, values-xxx-rXX
         // denies values-xxx, anything else
-        if (language[0] != '\00' && localeScript.length == 0 && localeVariant.length == 0 &&
-                (region.length != 3 && language.length != 3) ||
-                (language.length == 3 && region.length == 2 && region[0] != '\00' &&
-                        localeScript.length == 0 && localeVariant.length == 0)) {
-
+        if (localeVariant == null && localeScript == null && (region[0] != '\00' || language[0] != '\00') &&
+                region.length != 3) {
             sb.append("-").append(language);
             if (region[0] != '\00') {
                 sb.append("-r").append(region);
@@ -392,13 +405,13 @@ public class ResConfigFlags {
             if (language[0] != '\00') {
                 sb.append(language);
             }
-            if (localeScript.length == 4) {
+            if (localeScript != null && localeScript.length == 4) {
                 sb.append("+").append(localeScript);
             }
             if ((region.length == 2 || region.length == 3) && region[0] != '\00') {
                 sb.append("+").append(region);
             }
-            if (localeVariant.length >= 5) {
+            if (localeVariant != null && localeVariant.length >= 5) {
                 sb.append("+").append(toUpper(localeVariant));
             }
         }

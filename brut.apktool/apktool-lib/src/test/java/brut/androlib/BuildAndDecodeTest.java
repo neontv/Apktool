@@ -63,6 +63,11 @@ public class BuildAndDecodeTest {
     }
 
     @Test
+    public void manifestTaggingNotSupressed() throws BrutException {
+        compareXmlFiles("AndroidManifest.xml");
+    }
+
+    @Test
     public void valuesAnimsTest() throws BrutException {
         compareValuesFiles("values-mcc001/anims.xml");
     }
@@ -199,7 +204,12 @@ public class BuildAndDecodeTest {
 
     @Test
     public void threeLetterLangBcp47Test() throws BrutException, IOException {
-        compareValuesFiles("values-b+ast/strings.xml");
+        compareValuesFiles("values-ast/strings.xml");
+    }
+
+    @Test
+    public void twoLetterNotHandledAsBcpTest() throws BrutException, IOException {
+        checkFolderExists("res/values-fr");
     }
 
     @Test
@@ -268,6 +278,11 @@ public class BuildAndDecodeTest {
     }
 
     @Test
+    public void drawableQualifierXxhdpiTest() throws BrutException, IOException {
+        compareResFolder("drawable-xxhdpi-v4");
+    }
+
+    @Test
     public void drawableXxxhdpiTest() throws BrutException, IOException {
         compareResFolder("drawable-xxxhdpi");
     }
@@ -298,8 +313,7 @@ public class BuildAndDecodeTest {
     }
 
     @SuppressWarnings("unchecked")
-    private void compareUnknownFiles()
-            throws BrutException, IOException {
+    private void compareUnknownFiles() throws BrutException, IOException {
         Map<String, Object> control = new Androlib().readMetaFile(sTestOrigDir);
         Map<String, Object> test = new Androlib().readMetaFile(sTestNewDir);
         assertTrue(control.containsKey("unknownFiles"));
@@ -310,42 +324,43 @@ public class BuildAndDecodeTest {
         assertTrue(control_files.size() == test_files.size());
 
         // Make sure that the compression methods are still the same
-        for(Map.Entry<String, String> controlEntry : control_files.entrySet()) {
+        for (Map.Entry<String, String> controlEntry : control_files.entrySet()) {
             assertTrue(controlEntry.getValue().equals(test_files.get(controlEntry.getKey())));
         }
     }
 
-    private boolean compareBinaryFolder(String path, boolean res)
-            throws BrutException, IOException {
+    private void compareBinaryFolder(String path, boolean res) throws BrutException, IOException {
+        Boolean exists = true;
+
         String tmp = "";
         if (res) {
             tmp = File.separatorChar + "res" + File.separatorChar;
         }
 
-        FileDirectory fileDirectory = new FileDirectory(sTestOrigDir + tmp + path);
+        String location = tmp + path;
+
+        FileDirectory fileDirectory = new FileDirectory(sTestOrigDir + location);
 
         Set<String> files = fileDirectory.getFiles(true);
         for (String filename : files) {
-            File control = new File(filename);
 
-            // hacky fix - load test by changing name of control
-            File test =  new File(control.toString().replace("testapp-orig", "testapp-new"));
+            File control = new File((sTestOrigDir + location), filename);
+            File test =  new File((sTestNewDir + location), filename);
 
-            if (test.isFile() && control.isFile()) {
-                if (control.hashCode() != test.hashCode()) {
-                    return false;
-                }
+            if (! test.isFile() || ! control.isFile()) {
+                exists = false;
             }
         }
-        return true;
+
+        assertTrue(exists);
     }
 
-    private boolean compareResFolder(String path) throws BrutException, IOException {
-        return compareBinaryFolder(path, true);
+    private void compareResFolder(String path) throws BrutException, IOException {
+        compareBinaryFolder(path, true);
     }
 
-    private boolean compareLibsFolder(String path) throws BrutException, IOException {
-        return compareBinaryFolder(File.separatorChar + path,false);
+    private void compareLibsFolder(String path) throws BrutException, IOException {
+        compareBinaryFolder(File.separatorChar + path, false);
     }
 
     private void compareValuesFiles(String path) throws BrutException {
@@ -356,17 +371,20 @@ public class BuildAndDecodeTest {
         compareXmlFiles(path, null);
     }
 
-    private void compareXmlFiles(String path, ElementQualifier qualifier)
-            throws BrutException {
+    private void checkFolderExists(String path) throws BrutException {
+        File f =  new File(sTestNewDir, path);
+
+        assertTrue(f.isDirectory());
+    }
+
+    private void compareXmlFiles(String path, ElementQualifier qualifier) throws BrutException {
         DetailedDiff diff;
         try {
             Reader control = new FileReader(new File(sTestOrigDir, path));
             Reader test = new FileReader(new File(sTestNewDir, path));
 
             diff = new DetailedDiff(new Diff(control, test));
-        } catch (SAXException ex) {
-            throw new BrutException(ex);
-        } catch (IOException ex) {
+        } catch (SAXException | IOException ex) {
             throw new BrutException(ex);
         }
 
