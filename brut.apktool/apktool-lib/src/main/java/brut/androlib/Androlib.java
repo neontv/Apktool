@@ -18,6 +18,7 @@ package brut.androlib;
 
 import brut.androlib.java.AndrolibJava;
 import brut.androlib.res.AndrolibResources;
+import brut.androlib.res.data.ResCompressionSettings;
 import brut.androlib.res.data.ResPackage;
 import brut.androlib.res.data.ResTable;
 import brut.androlib.res.data.ResUnknownFiles;
@@ -30,6 +31,7 @@ import brut.directory.*;
 import brut.util.BrutIO;
 import brut.util.OS;
 import java.io.*;
+import java.nio.file.Files;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.zip.CRC32;
@@ -47,6 +49,7 @@ import org.yaml.snakeyaml.Yaml;
 public class Androlib {
     private final AndrolibResources mAndRes = new AndrolibResources();
     protected final ResUnknownFiles mResUnknownFiles = new ResUnknownFiles();
+    protected final ResCompressionSettings mResCompressionSettings = new ResCompressionSettings();
     public ApkOptions apkOptions;
 
     public Androlib(ApkOptions apkOptions) {
@@ -196,6 +199,36 @@ public class Androlib {
                         }
                     } catch (NullPointerException ignored) { }
                 }
+            }
+            apkZipFile.close();
+        } catch (DirectoryException | IOException ex) {
+            throw new AndrolibException(ex);
+        }
+    }
+
+    public void decodeCompressionSettings(ExtFile apkFile)
+        throws AndrolibException {
+        LOGGER.info("Reading compression settings...");
+        ZipEntry invZipFile;
+
+        // have to use container of ZipFile to help identify compression type
+        // with regular looping of apkFile for easy copy
+        try {
+            Directory unk = apkFile.getDirectory();
+            ZipFile apkZipFile = new ZipFile(apkFile.getAbsolutePath());
+
+            // loop all items in container recursively, ignoring any that are pre-defined by aapt
+            Set<String> files = unk.getFiles(true);
+            for (String file : files) {
+                try {
+                    invZipFile = apkZipFile.getEntry(file);
+
+                    // lets record the name of the file, and its compression type
+                    // so that we may re-include it the same way
+                    if (invZipFile != null) {
+                        mResCompressionSettings.addCompressionSetting(invZipFile.getName(), String.valueOf(invZipFile.getMethod()));
+                    }
+                } catch (NullPointerException ignored) { }
             }
             apkZipFile.close();
         } catch (DirectoryException | IOException ex) {
@@ -572,6 +605,12 @@ public class Androlib {
         if (meta.containsKey("unknownFiles")) {
             LOGGER.info("Copying unknown files/dir...");
 
+            Map<String, String> compressionSettings = (Map<String, String>)meta.get("fileCompressionMethods");
+            if(compressionSettings == null) {
+                // Provide empty defaults
+                compressionSettings = new HashMap<>();
+            }
+
             Map<String, String> files = (Map<String, String>)meta.get("unknownFiles");
             File tempFile = new File(outFile.getParent(), outFile.getName() + ".apktool_temp");
             boolean renamed = outFile.renameTo(tempFile);
@@ -583,7 +622,7 @@ public class Androlib {
                     ZipFile inputFile = new ZipFile(tempFile);
                     ZipOutputStream actualOutput = new ZipOutputStream(new FileOutputStream(outFile))
             ) {
-                copyExistingFiles(inputFile, actualOutput);
+                copyExistingFiles(inputFile, actualOutput, compressionSettings);
                 copyUnknownFiles(appDir, actualOutput, files);
             } catch (IOException ex) {
                 throw new AndrolibException(ex);
@@ -594,19 +633,29 @@ public class Androlib {
         }
     }
 
-    private void copyExistingFiles(ZipFile inputFile, ZipOutputStream outputFile) throws IOException {
+    private void copyExistingFiles(ZipFile inputFile, ZipOutputStream outputFile, Map<String, String> compressionSettings) throws IOException {
         // First, copy the contents from the existing outFile:
         Enumeration<? extends ZipEntry> entries = inputFile.entries();
+
         while (entries.hasMoreElements()) {
-            ZipEntry entry = new ZipEntry(entries.nextElement());
+            ZipEntry inputEntry = entries.nextElement();
+            ZipEntry entry = new ZipEntry(inputEntry);
 
             // We can't reuse the compressed size because it depends on compression sizes.
             entry.setCompressedSize(-1);
+            String savedMethod = compressionSettings.get(entry.getName());
+
+            // Only change the default method if we previously saved a value for it.
+            if (savedMethod != null) {
+                int method = Integer.valueOf(savedMethod);
+                entry.setMethod(method);
+            }
+
             outputFile.putNextEntry(entry);
 
             // No need to create directory entries in the final apk
             if (! entry.isDirectory()) {
-                BrutIO.copy(inputFile, outputFile, entry);
+                BrutIO.copy(inputFile, outputFile, inputEntry);
             }
 
             outputFile.closeEntry();

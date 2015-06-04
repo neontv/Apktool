@@ -156,6 +156,7 @@ public class ApkDecoder {
             }
         }
 
+        mAndrolib.decodeCompressionSettings(mApkFile);
         mAndrolib.decodeRawFiles(mApkFile, outDir);
         mAndrolib.decodeUnknownFiles(mApkFile, outDir, mResTable);
         mAndrolib.writeOriginalFiles(mApkFile, outDir);
@@ -320,6 +321,7 @@ public class ApkDecoder {
             putPackageInfo(meta);
             putVersionInfo(meta);
             putCompressionInfo(meta);
+            putFileCompressionMethods(meta);
             putSharedLibraryInfo(meta);
         }
         putUnknownInfo(meta);
@@ -392,6 +394,13 @@ public class ApkDecoder {
 
     private void putCompressionInfo(Map<String, Object> meta) throws AndrolibException {
         meta.put("compressionType", getCompressionType());
+    }
+
+    private void putFileCompressionMethods(Map<String, Object> meta) throws AndrolibException {
+        Map<String, String> info = mAndrolib.mResCompressionSettings.getCompressionSettings();
+        if (info.size() > 0) {
+            meta.put("fileCompressionMethods", info);
+        }
     }
 
     private void putSharedLibraryInfo(Map<String, Object> meta) throws AndrolibException {
