@@ -77,6 +77,12 @@ public class ResFileDecoder {
                         return;
                     }
 
+                    // check for xml 9 patches which are just xml files
+                    if (inFileName.toLowerCase().endsWith(".xml")) {
+                        decode(inDir, inFileName, outDir, outFileName, "xml");
+                        return;
+                    }
+
                     try {
                         decode(inDir, inFileName, outDir, outFileName, "9patch");
                         return;
@@ -101,7 +107,7 @@ public class ResFileDecoder {
             LOGGER.log(Level.SEVERE, String.format(
                     "Could not decode file, replacing by FALSE value: %s",
                     inFileName, outFileName), ex);
-            res.replace(new ResBoolValue(false, null));
+            res.replace(new ResBoolValue(false, 0, null));
         }
     }
 

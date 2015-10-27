@@ -90,7 +90,9 @@ public class ARSCDecoder {
             // for Apktool's use we need a non-zero packageId.
             // AOSP indicates 0x02 is next, as 0x01 is system and 0x7F is private.
             id = 2;
-            mResTable.setSharedLibrary(true);
+            if (mResTable.getPackageOriginal() == null && mResTable.getPackageRenamed() == null) {
+                mResTable.setSharedLibrary(true);
+            }
         }
 
         String name = mIn.readNullEndedString(128, true);
@@ -200,6 +202,9 @@ public class ARSCDecoder {
 
         ResValue value = (flags & ENTRY_FLAG_COMPLEX) == 0 ? readValue() : readComplexEntry();
 
+        if (mType.isString() && value instanceof ResFileValue) {
+            value = new ResStringValue(value.toString(), ((ResFileValue) value).getRawIntValue());
+        }
         if (mConfig == null) {
             return;
         }
@@ -227,21 +232,32 @@ public class ARSCDecoder {
 
         ResValueFactory factory = mPkg.getValueFactory();
         Duo<Integer, ResScalarValue>[] items = new Duo[count];
+        ResIntBasedValue resValue;
+        int resId;
+
         for (int i = 0; i < count; i++) {
-            items[i] = new Duo<Integer, ResScalarValue>(mIn.readInt(), (ResScalarValue) readValue());
+            resId = mIn.readInt();
+            resValue = readValue();
+
+            if (resValue instanceof ResScalarValue) {
+                items[i] = new Duo<Integer, ResScalarValue>(resId, (ResScalarValue) resValue);
+            } else {
+                resValue = new ResStringValue(resValue.toString(), resValue.getRawIntValue());
+                items[i] = new Duo<Integer, ResScalarValue>(resId, (ResScalarValue) resValue);
+            }
         }
 
         return factory.bagFactory(parent, items);
     }
 
-    private ResValue readValue() throws IOException, AndrolibException {
+    private ResIntBasedValue readValue() throws IOException, AndrolibException {
 		/* size */mIn.skipCheckShort((short) 8);
 		/* zero */mIn.skipCheckByte((byte) 0);
         byte type = mIn.readByte();
         int data = mIn.readInt();
 
         return type == TypedValue.TYPE_STRING
-                ? mPkg.getValueFactory().factory(mTableStrings.getHTML(data))
+                ? mPkg.getValueFactory().factory(mTableStrings.getHTML(data), data)
                 : mPkg.getValueFactory().factory(type, data, null);
     }
 
@@ -304,9 +320,17 @@ public class ARSCDecoder {
             read = 48;
         }
 
+        byte screenLayout2 = 0;
+        if (size >= 52) {
+            screenLayout2 = mIn.readByte();
+            mIn.skipBytes(3); // reserved padding
+            read = 52;
+        }
+
         int exceedingSize = size - KNOWN_CONFIG_BYTES;
         if (exceedingSize > 0) {
             byte[] buf = new byte[exceedingSize];
+            read += exceedingSize;
             mIn.readFully(buf);
             BigInteger exceedingBI = new BigInteger(1, buf);
 
@@ -330,7 +354,7 @@ public class ARSCDecoder {
                 orientation, touchscreen, density, keyboard, navigation,
                 inputFlags, screenWidth, screenHeight, sdkVersion,
                 screenLayout, uiMode, smallestScreenWidthDp, screenWidthDp,
-                screenHeightDp, localeScript, localeVariant, isInvalid);
+                screenHeightDp, localeScript, localeVariant, screenLayout2, isInvalid);
     }
 
     private char[] unpackLanguageOrRegion(byte in0, byte in1, char base) throws AndrolibException {
@@ -378,7 +402,7 @@ public class ARSCDecoder {
                 mConfig = mPkg.getOrCreateConfig(new ResConfigFlags());
             }
 
-            ResValue value = new ResBoolValue(false, null);
+            ResValue value = new ResBoolValue(false, 0, null);
             ResResource res = new ResResource(mConfig, spec, value);
 
             mPkg.addResource(res);
@@ -458,7 +482,7 @@ public class ARSCDecoder {
     }
 
     private static final Logger LOGGER = Logger.getLogger(ARSCDecoder.class.getName());
-    private static final int KNOWN_CONFIG_BYTES = 48;
+    private static final int KNOWN_CONFIG_BYTES = 52;
 
     public static class ARSCData {
 
